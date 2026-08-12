@@ -1,0 +1,8 @@
+# Local Claude Code config
+.claude/
+
+# Redundant copy of index.html (index.html is the canonical file / GitHub Pages entry point)
+Spider-Man Recap - Venice.html
+
+# macOS
+.DS_Store
