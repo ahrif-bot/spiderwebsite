@@ -644,6 +644,46 @@ def build_curated_sentiments(creators: list[dict]) -> list[dict]:
     return out
 
 
+# Brooklyn Advance Creator Screening — curated attendee quotes from IG captions.
+# (db_handle, quote, category, emoji, tone, post_url)
+BROOKLYN_SENTIMENTS = [
+    ("Ramces_SW", "Some movies remind you why you became a Spider-Man fan in the first place 🕸️❤️",
+     "EMOTIONAL", "🥹", "teal", "https://www.instagram.com/p/DbbFTAOxlbU/"),
+    ("WatchWithNeebz", "It has such a unique, inspiring atmosphere, and it was the perfect venue to experience the film.",
+     "IMPRESSED", "😍", "teal", "https://www.instagram.com/p/Dba0OqWOUNy/"),
+    ("Lindsey", "Someone pinch me !!! ❤️🕷️",
+     "STOKED", "🤩", "pink", "https://www.instagram.com/p/DbZmT21EW2H/?img_index=1"),
+    ("jaylonmdawson", "first movie screening being Spider-Man is pretty hard to top. Absolutely unreal…",
+     "HYPED", "🔥", "pink", "https://www.instagram.com/p/Dbbl08PnAhX/?img_index=1"),
+    ("IAmJessenia", "There are moments that remind you why you fell in love with something in the first place",
+     "EMOTIONAL", "🥹", "teal", "https://www.instagram.com/p/DbbtKXRNtPx/"),
+    ("joegonzales.co", "The opportunities are usually on the other side of hitting “post.”",
+     "PERSPECTIVE", "💭", "yellow", "https://www.instagram.com/p/Dbbyy2kuqsM/"),
+    ("IAmJessenia", "Some stories remind you why you fell in love with storytelling in the first place. 🕷️❤️",
+     "CRAFT", "🎬", "teal", "https://www.instagram.com/p/DbeQB35NPoB/"),
+]
+
+
+def build_brooklyn_sentiments(creators: list[dict]) -> list[dict]:
+    """Curated Brooklyn-screening attendee quotes, labelled 'Creator' like the
+    rest of the grid, each linking to its Instagram post."""
+    by_handle = {c["handle"].lower(): c.get("name") for c in creators}
+    out = []
+    for handle, quote, category, emoji, tone, url in BROOKLYN_SENTIMENTS:
+        out.append({
+            "name": by_handle.get(handle.lower()) or ("@" + handle),
+            "role": ROLE_CREATOR,
+            "quote": quote,
+            "category": category,
+            "emoji": emoji,
+            "tone": tone,
+            "source": "creator",
+            "event": EVENT_BROOKLYN,   # tagged for reference; grid isn't event-filtered
+            "postUrl": url,
+        })
+    return out
+
+
 def source_from(cm: str, who: str, role: str) -> str:
     """Two buckets: 'client' (brand/event-team side) vs 'creator' (creators,
     members, attendees, panelists, pedestrians). Uses the 'Client or member'
@@ -833,16 +873,18 @@ def load_owned() -> list[dict]:
 
 def main():
     creators, posts, stats = build_posts()
-    # Sentiment cards are drawn from the Venice event only.
-    sentiments = build_sentiments()
-    sentiments += build_creator_sentiments(creators, posts)
-    sentiments += build_curated_sentiments(creators)
 
     bk_creators, bk_posts, bk_stats = build_brooklyn()
     if bk_posts:
         print(f"brooklyn: {len(bk_creators)} creators, {len(bk_posts)} instagram posts")
         creators = creators + bk_creators
         posts = posts + bk_posts
+
+    # Sentiments — built after Brooklyn creators are merged so their names resolve.
+    sentiments = build_sentiments()
+    sentiments += build_creator_sentiments(creators, posts)
+    sentiments += build_curated_sentiments(creators)
+    sentiments += build_brooklyn_sentiments(creators)
 
     # Quotes to drop from the sentiment grid (matched by a lowercase substring).
     SENTIMENT_EXCLUDE = (
