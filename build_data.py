@@ -579,10 +579,19 @@ OVERHEARD_NAMES = {
 }
 
 
+# Per-person label overrides that win over the Creator/Client/Overheard buckets.
+ROLE_OVERRIDES = {
+    "harry yoon": "Movie Editor",
+}
+
+
 def normalize_role(name: str, role: str, source: str) -> str:
-    """Collapse the assorted source labels into Creator / Client / Overheard."""
+    """Collapse the assorted source labels into Creator / Client / Overheard,
+    unless the person has an explicit override."""
     n = (name or "").strip().lower()
     r = (role or "").strip().lower()
+    if n in ROLE_OVERRIDES:
+        return ROLE_OVERRIDES[n]
     if source == "client":
         return ROLE_CLIENT
     if n in OVERHEARD_NAMES or "overheard" in r or "passerby" in n:
