@@ -844,12 +844,18 @@ def main():
         creators = creators + bk_creators
         posts = posts + bk_posts
 
-    # De-duplicate sentiments by quote text (some feedback repeats)
+    # Quotes to drop from the sentiment grid (matched by a lowercase substring).
+    SENTIMENT_EXCLUDE = (
+        "wait is that real",           # Vidisha Jain — removed by request
+        "nothing ever happens out here",  # The Lighthouse Member — removed by request
+    )
+
+    # De-duplicate sentiments by quote text (some feedback repeats) and drop excludes
     seen_q = set()
     uniq_sentiments = []
     for s in sentiments:
         key = s["quote"].lower()
-        if key in seen_q:
+        if key in seen_q or any(x in key for x in SENTIMENT_EXCLUDE):
             continue
         seen_q.add(key)
         uniq_sentiments.append(s)
