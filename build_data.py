@@ -807,7 +807,7 @@ def build_creator_sentiments(creators: list[dict], posts: list[dict], limit: int
             "role": ("TikTok" if it["platform"] == "tiktok" else "Instagram") + " · from their post",
             "quote": quote,
             "category": "CREATOR",
-            "emoji": "🕷️",
+            "emoji": "📱",
             "tone": "teal",
             "source": "creator",
             "handle": it["handle"],
