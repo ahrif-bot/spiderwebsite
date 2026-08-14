@@ -563,6 +563,87 @@ def build_brooklyn() -> tuple[list[dict], list[dict], dict]:
     return list(creators.values()), posts, stats
 
 
+# ---------- sentiment role buckets ----------
+# Every sentiment card's sub-label must read exactly one of these three, so the
+# grid stays scannable (it previously showed ad-hoc labels like "Event feedback",
+# "Lighthouse feedback", "Sentiment", "During the @moderntarzan photoshoot").
+ROLE_CREATOR = "Creator"
+ROLE_CLIENT = "Client"
+ROLE_OVERHEARD = "Overheard"
+
+# Attributions that are ambient/overheard rather than a named person's feedback.
+OVERHEARD_NAMES = {
+    "passerby",
+    "people on the street",
+    "the lighthouse member",
+}
+
+
+def normalize_role(name: str, role: str, source: str) -> str:
+    """Collapse the assorted source labels into Creator / Client / Overheard."""
+    n = (name or "").strip().lower()
+    r = (role or "").strip().lower()
+    if source == "client":
+        return ROLE_CLIENT
+    if n in OVERHEARD_NAMES or "overheard" in r or "passerby" in n:
+        return ROLE_OVERHEARD
+    return ROLE_CREATOR
+
+
+# ---------- curated creator quotes pulled from social posts ----------
+# (name, handle, quote, category, emoji, tone). `name` is None when the handle
+# isn't in the creator database — those cards show the @handle instead.
+CURATED_CREATOR_QUOTES = [
+    ("_bucketjosh", "I got to see stuff from Spider-Man: Brand New Day that the rest of the world hasn't", "FIRST LOOK", "👀", "yellow"),
+    ("therealdoomblazer", "Got to hang with Jackie Chan's stunt team!", "HYPED", "🔥", "pink"),
+    ("officialhannahsarah", "How lovely to meet and sit with the editors of brand new day just to chat about our love for this film…just to hear their love for what they do and what we see in film, magic", "CRAFT", "🎬", "teal"),
+    ("impatrickt", "Wrapped an insane week in LA, moderating a cinematography panel", "CRAFT", "🎬", "teal"),
+    ("jackiebonsignore", "Wait is that @coyjandreau ???", "WHOA", "😳", "pink"),
+    ("doublearugs", "Oh my gosh. They had the brand new day suit", "WHOA", "😳", "pink"),
+    ("tapeselects", "We were treated to a ton of incredible behind the scenes looks", "FIRST LOOK", "👀", "yellow"),
+    ("bakerjayyy", "They played two of my spidey videos!", "STOKED", "🤩", "pink"),
+    ("therealdoomblazer", "Long awaited meet up", "FUN", "🎉", "pink"),
+    ("therealdoomblazer", "7 year old me would be going crazy right now", "EMOTIONAL", "🥹", "teal"),
+    ("minisuperheroestoday", "This was a dream experience", "EMOTIONAL", "🥹", "teal"),
+    ("kayladsoto", "Y'all today has been wild. I'm still shook", "HYPED", "🔥", "pink"),
+    ("officialhannahsarah", "Things are about to be webtastic today", "FUN", "🎉", "pink"),
+    ("macfarlanebros", "Got to hear from the director and heads of departments about their process creating @spidermanmovie !!", "CRAFT", "🎬", "teal"),
+    ("joshvstheworld__", "I'm still taking this in brb", "EMOTIONAL", "🥹", "teal"),
+    ("dylanjbradshaw", "Got a sneak peek of the new Spider-Man film, met @destindaniel @brettsbo, and more of the incredible team that brought this movie to life!", "FIRST LOOK", "👀", "yellow"),
+    ("doublearugs", "Yesterday I had the privilege of attending a Spider-Man: Brand New Day event for creators with Destin Daniel Cretton in attendance, as well as the creative team from the movie… just hearing from the creatives and just knowing that they put so much passion and love into this movie has me excited.", "IMPRESSED", "😍", "teal"),
+    ("_bucketjosh", "hearing Destin, the director, along with the rest of the crew talk about the film really put into perspective how much raw passion was put into it.", "IMPRESSED", "😍", "teal"),
+    ("lukesoutpost", "Got to hear from the film's director, Destin, and other members of the filmmaking team. Showing us behind the scenes look at how they approached the cinematography…", "CRAFT", "🎬", "teal"),
+    ("lukesoutpost", "Getting to hear from people behind the camera was the highlight of the day", "CRAFT", "🎬", "teal"),
+    ("disway80", "Thank you for showcasing so many creators from all around the world at todays event.", "GRATEFUL", "🙏", "pink"),
+]
+
+# Post URLs for quotes that came from a specific reel rather than the profile.
+CURATED_POST_URLS = {
+    "lukesoutpost": "https://www.instagram.com/reels/Da0pTNZumCD/",
+}
+
+
+def build_curated_sentiments(creators: list[dict]) -> list[dict]:
+    """Hand-picked creator quotes from social posts. Labelled 'Creator' like the
+    rest of the grid; the handle links out to the source post/profile."""
+    by_handle = {c["handle"].lower(): c.get("name") for c in creators}
+    out = []
+    for handle, quote, category, emoji, tone in CURATED_CREATOR_QUOTES:
+        real_name = by_handle.get(handle.lower())
+        out.append({
+            # fall back to the @handle when the creator isn't in the database
+            "name": real_name or ("@" + handle),
+            "role": ROLE_CREATOR,
+            "quote": quote,
+            "category": category,
+            "emoji": emoji,
+            "tone": tone,
+            "source": "creator",
+            "postUrl": CURATED_POST_URLS.get(handle.lower(), f"https://www.instagram.com/{handle}"),
+        })
+    return out
+
+
 def source_from(cm: str, who: str, role: str) -> str:
     """Two buckets: 'client' (brand/event-team side) vs 'creator' (creators,
     members, attendees, panelists, pedestrians). Uses the 'Client or member'
@@ -600,14 +681,17 @@ def build_sentiments() -> list[dict]:
         src = source_from(cm, who, role)
         out.append({
             "name": name,
-            "role": role,
+            "role": normalize_role(name, role, src),
             "quote": shorten_quote(text),
             "category": label,
             "emoji": emoji,
             "tone": tone,
             "source": src,
         })
-    out.extend(EXTRA_SENTIMENTS)
+    for extra in EXTRA_SENTIMENTS:
+        e = dict(extra)
+        e["role"] = normalize_role(e.get("name"), e.get("role"), e.get("source"))
+        out.append(e)
     return out
 
 
@@ -752,6 +836,7 @@ def main():
     # Sentiment cards are drawn from the Venice event only.
     sentiments = build_sentiments()
     sentiments += build_creator_sentiments(creators, posts)
+    sentiments += build_curated_sentiments(creators)
 
     bk_creators, bk_posts, bk_stats = build_brooklyn()
     if bk_posts:
